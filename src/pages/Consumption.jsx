@@ -140,9 +140,9 @@ export default function Consumption() {
               )}
             </section>
             <p className="footnote">
-              Para este proyecto, cada palabra procesada equivale a un token.
-              Este conteo incluye el contexto y la respuesta; no representa el
-              costo de la API.
+              Para este proyecto, cada palabra procesada equivale a un token. El
+              conteo suma únicamente la pregunta y la respuesta; excluye el
+              contexto y no representa el costo de la API.
             </p>
           </>
         )
