@@ -1,2 +1,3 @@
 import { defineConfig } from '@playwright/test';
-export default defineConfig({testDir:'./tests',testMatch:'*.spec.js',use:{baseURL:'http://127.0.0.1:5173',headless:true},workers:1,reporter:'list'});
+
+export default defineConfig({ testDir: './tests', testMatch: '*.spec.js', use: { baseURL: 'http://127.0.0.1:5173', headless: true }, workers: 1, reporter: 'list' });

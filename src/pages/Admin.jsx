@@ -1,14 +1,361 @@
-import { useEffect,useState } from 'react';
-import { Plus,Pencil,Trash2,Search,RefreshCw } from 'lucide-react';
-import { api } from '../api';
-import { useAuth } from '../AuthContext';
-import { adminConfig,recordPayload } from '../catalogConfig';
-import { Alert,Heading,Loading,Modal,Pagination } from '../components/UI';
-export default function Admin({resource}){
- const config=adminConfig[resource];const {user}=useAuth();const [rows,setRows]=useState([]);const [offset,setOffset]=useState(0);const [busy,setBusy]=useState(true);const [error,setError]=useState('');const [success,setSuccess]=useState('');const [reload,setReload]=useState(0);const [search,setSearch]=useState('');const [filter,setFilter]=useState('');const [editing,setEditing]=useState(null);const [deleting,setDeleting]=useState(null);const [saving,setSaving]=useState(false);const [modalError,setModalError]=useState('');const [values,setValues]=useState({});
- useEffect(()=>{const controller=new AbortController();setBusy(true);setError('');const params=new URLSearchParams({offset:String(offset),limit:'10'});if(filter && resource!=='usuarios')params.set('titulo',filter);api(`/${resource}?${params}`,{signal:controller.signal}).then(setRows).catch(e=>{if(e.name!=='AbortError')setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setBusy(false);});return ()=>controller.abort();},[resource,offset,filter,reload]);
- function openForm(row){setValues(Object.fromEntries(config.fields.map(([key])=>[key,key==='password' ? '' : row?.[key] ?? (key==='rol' ? 'usuario' : '')])));setEditing(row || {});setModalError('');}
- async function save(e){e.preventDefault();if(saving)return;setSaving(true);setModalError('');const exists=editing?.[config.id]!=null;try{await api(`/${resource}${exists ? '/'+editing[config.id] : ''}`,{method:exists ? 'PUT' : 'POST',body:recordPayload(config,values)});setEditing(null);setSuccess(`${config.title}: registro ${exists ? 'actualizado' : 'creado'} correctamente.`);setReload(v=>v+1);}catch(e){setModalError(e.message);}finally{setSaving(false);}}
- async function remove(){if(saving)return;setSaving(true);setModalError('');try{await api(`/${resource}/${deleting[config.id]}`,{method:'DELETE'});setDeleting(null);setSuccess('Registro eliminado correctamente.');if(rows.length===1 && offset>0)setOffset(offset-10);else setReload(v=>v+1);}catch(e){setModalError(e.message);}finally{setSaving(false);}}
- return <div className="page"><Heading eyebrow="ADMINISTRACIÓN" title={config.title} description={config.description}><button className="primary" onClick={()=>openForm(null)}><Plus size={17}/>Crear {config.singular}</button></Heading><Alert>{error}</Alert><Alert success>{success}</Alert><section className="card"><div className="table-toolbar">{resource!=='usuarios' ? <form className="search-form" onSubmit={e=>{e.preventDefault();setOffset(0);setFilter(search.trim());}}><Search size={18}/><input aria-label={`Buscar ${config.title.toLowerCase()} por título`} placeholder="Buscar por título…" value={search} onChange={e=>setSearch(e.target.value)}/><button className="secondary" disabled={busy}>Buscar</button></form> : <p className="muted">Cuentas y permisos de acceso</p>}<button className="icon-button" aria-label="Actualizar tabla" disabled={busy} onClick={()=>setReload(v=>v+1)}><RefreshCw size={18}/></button></div>{busy ? <Loading/> : error ? <div className="empty-state">No pudimos cargar los datos. Intenta actualizar.</div> : rows.length ? <div className="table-scroll"><table><thead><tr>{config.columns.map(([key,label])=><th key={key}>{label}</th>)}<th className="actions-cell">Acciones</th></tr></thead><tbody>{rows.map(row=><tr key={row[config.id]}>{config.columns.map(([key])=><td key={key}>{key==='rol' ? <span className={`role-badge ${row[key]==='admin' ? 'admin' : ''}`}>{row[key]==='admin' ? 'Administrador' : 'Usuario'}</span> : row[key] ?? '—'}</td>)}<td className="actions-cell"><button className="icon-button" aria-label={`Editar ${row.titulo || row.nombre}`} onClick={()=>openForm(row)}><Pencil size={17}/></button><button className="icon-button danger" aria-label={`Eliminar ${row.titulo || row.nombre}`} disabled={resource==='usuarios' && row.id_usuario===user.id_usuario} onClick={()=>{setDeleting(row);setModalError('');}}><Trash2 size={17}/></button></td></tr>)}</tbody></table></div> : <div className="empty-state"><h2>No hay registros para mostrar.</h2><p>{filter ? 'Prueba con otro título.' : `Crea un registro para empezar.`}</p></div>}<Pagination offset={offset} limit={10} count={rows.length} busy={busy || !!error} onChange={setOffset}/></section>{editing && <Modal title={`${editing[config.id]!=null ? 'Editar' : 'Crear'} ${config.singular}`} busy={saving} onClose={()=>setEditing(null)}><form onSubmit={save}><Alert>{modalError}</Alert>{resource==='usuarios' && editing[config.id]!=null && <p className="form-note">La API requiere una contraseña al editar. Introduce la nueva contraseña para esta cuenta.</p>}<div className="form-grid">{config.fields.map(([key,label,type='text',required=false])=><label key={key} className={type==='textarea' ? 'wide' : ''}>{label}{!required && <span className="optional">Opcional</span>}{type==='select' ? <select value={values[key]} disabled={saving || (resource==='usuarios' && editing.id_usuario===user.id_usuario)} onChange={e=>setValues({...values,[key]:e.target.value})}><option value="usuario">Usuario</option><option value="admin">Administrador</option></select> : type==='textarea' ? <textarea rows={3} disabled={saving} value={values[key]} onChange={e=>setValues({...values,[key]:e.target.value})}/> : <input type={type} required={required} disabled={saving} value={values[key]} minLength={key==='password' ? 8 : undefined} maxLength={key==='password' ? 128 : resource==='usuarios' && key==='nombre' ? 100 : key==='correo' ? 254 : undefined} min={key==='duracion_minutos' ? 1 : undefined} step={key==='calificacion' ? 'any' : type==='number' ? '1' : undefined} autoComplete={key==='password' ? 'new-password' : 'off'} onChange={e=>setValues({...values,[key]:e.target.value})}/>}</label>)}</div><div className="modal-actions"><button className="secondary" type="button" disabled={saving} onClick={()=>setEditing(null)}>Cancelar</button><button className="primary" disabled={saving}>{saving ? 'Guardando…' : 'Guardar cambios'}</button></div></form></Modal>}{deleting && <Modal title="¿Eliminar este registro?" busy={saving} onClose={()=>setDeleting(null)}><Alert>{modalError}</Alert><p>Vas a eliminar <strong>{deleting.titulo || deleting.nombre}</strong>.</p>{resource==='usuarios' && <p className="form-note">También se eliminarán su historial, consumo y sesiones.</p>}<p className="muted">Esta acción no se puede deshacer.</p><div className="modal-actions"><button className="secondary" disabled={saving} onClick={()=>setDeleting(null)}>Cancelar</button><button className="danger-button" disabled={saving} onClick={remove}>{saving ? 'Eliminando…' : 'Eliminar registro'}</button></div></Modal>}</div>;
+import { useEffect, useState } from "react";
+import { Plus, Pencil, Trash2, Search, RefreshCw } from "lucide-react";
+import { api } from "../api";
+import { useAuth } from "../AuthContext";
+import { adminConfig, recordPayload } from "../catalogConfig";
+import { Alert, Heading, Loading, Modal, Pagination } from "../components/UI";
+
+export default function Admin({ resource }) {
+
+  const config = adminConfig[resource];
+  const { user } = useAuth();
+  const [rows, setRows] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [reload, setReload] = useState(0);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("");
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [values, setValues] = useState({});
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setBusy(true);
+    setError("");
+    const params = new URLSearchParams({ offset: String(offset), limit: "10" });
+    if (filter && resource !== "usuarios") params.set("titulo", filter);
+    api(`/${resource}?${params}`, { signal: controller.signal })
+      .then(setRows)
+      .catch((e) => {
+        if (e.name !== "AbortError") setError(e.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setBusy(false);
+      });
+    return () => controller.abort();
+  }, [resource, offset, filter, reload]);
+
+  function openForm(row) {
+    setValues(
+      Object.fromEntries(
+        config.fields.map(([key]) => [
+          key,
+          key === "password"
+            ? ""
+            : (row?.[key] ?? (key === "rol" ? "usuario" : "")),
+        ]),
+      ),
+    );
+    setEditing(row || {});
+    setModalError("");
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setModalError("");
+    const exists = editing?.[config.id] != null;
+    try {
+      await api(`/${resource}${exists ? "/" + editing[config.id] : ""}`, {
+        method: exists ? "PUT" : "POST",
+        body: recordPayload(config, values),
+      });
+      setEditing(null);
+      setSuccess(
+        `${config.title}: registro ${exists ? "actualizado" : "creado"} correctamente.`,
+      );
+      setReload((v) => v + 1);
+    } catch (e) {
+      setModalError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    if (saving) return;
+    setSaving(true);
+    setModalError("");
+    try {
+      await api(`/${resource}/${deleting[config.id]}`, { method: "DELETE" });
+      setDeleting(null);
+      setSuccess("Registro eliminado correctamente.");
+      if (rows.length === 1 && offset > 0) setOffset(offset - 10);
+      else setReload((v) => v + 1);
+    } catch (e) {
+      setModalError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="page">
+      <Heading
+        eyebrow="ADMINISTRACIÓN"
+        title={config.title}
+        description={config.description}
+      >
+        <button className="primary" onClick={() => openForm(null)}>
+          <Plus size={17} />
+          Crear {config.singular}
+        </button>
+      </Heading>
+      <Alert>{error}</Alert>
+      <Alert success>{success}</Alert>
+      <section className="card">
+        <div className="table-toolbar">
+          {resource !== "usuarios" ? (
+            <form
+              className="search-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setOffset(0);
+                setFilter(search.trim());
+              }}
+            >
+              <Search size={18} />
+              <input
+                aria-label={`Buscar ${config.title.toLowerCase()} por título`}
+                placeholder="Buscar por título…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button className="secondary" disabled={busy}>
+                Buscar
+              </button>
+            </form>
+          ) : (
+            <p className="muted">Cuentas y permisos de acceso</p>
+          )}
+          <button
+            className="icon-button"
+            aria-label="Actualizar tabla"
+            disabled={busy}
+            onClick={() => setReload((v) => v + 1)}
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
+        {busy ? (
+          <Loading />
+        ) : error ? (
+          <div className="empty-state">
+            No pudimos cargar los datos. Intenta actualizar.
+          </div>
+        ) : rows.length ? (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  {config.columns.map(([key, label]) => (
+                    <th key={key}>{label}</th>
+                  ))}
+                  <th className="actions-cell">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row[config.id]}>
+                    {config.columns.map(([key]) => (
+                      <td key={key}>
+                        {key === "rol" ? (
+                          <span
+                            className={`role-badge ${row[key] === "admin" ? "admin" : ""}`}
+                          >
+                            {row[key] === "admin" ? "Administrador" : "Usuario"}
+                          </span>
+                        ) : (
+                          (row[key] ?? "—")
+                        )}
+                      </td>
+                    ))}
+                    <td className="actions-cell">
+                      <button
+                        className="icon-button"
+                        aria-label={`Editar ${row.titulo || row.nombre}`}
+                        onClick={() => openForm(row)}
+                      >
+                        <Pencil size={17} />
+                      </button>
+                      <button
+                        className="icon-button danger"
+                        aria-label={`Eliminar ${row.titulo || row.nombre}`}
+                        disabled={
+                          resource === "usuarios" &&
+                          row.id_usuario === user.id_usuario
+                        }
+                        onClick={() => {
+                          setDeleting(row);
+                          setModalError("");
+                        }}
+                      >
+                        <Trash2 size={17} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h2>No hay registros para mostrar.</h2>
+            <p>
+              {filter
+                ? "Prueba con otro título."
+                : `Crea un registro para empezar.`}
+            </p>
+          </div>
+        )}
+        <Pagination
+          offset={offset}
+          limit={10}
+          count={rows.length}
+          busy={busy || !!error}
+          onChange={setOffset}
+        />
+      </section>
+      {editing && (
+        <Modal
+          title={`${editing[config.id] != null ? "Editar" : "Crear"} ${config.singular}`}
+          busy={saving}
+          onClose={() => setEditing(null)}
+        >
+          <form onSubmit={save}>
+            <Alert>{modalError}</Alert>
+            {resource === "usuarios" && editing[config.id] != null && (
+              <p className="form-note">
+                La API requiere una contraseña al editar. Introduce la nueva
+                contraseña para esta cuenta.
+              </p>
+            )}
+            <div className="form-grid">
+              {config.fields.map(
+                ([key, label, type = "text", required = false]) => (
+                  <label
+                    key={key}
+                    className={type === "textarea" ? "wide" : ""}
+                  >
+                    {label}
+                    {!required && <span className="optional">Opcional</span>}
+                    {type === "select" ? (
+                      <select
+                        value={values[key]}
+                        disabled={
+                          saving ||
+                          (resource === "usuarios" &&
+                            editing.id_usuario === user.id_usuario)
+                        }
+                        onChange={(e) =>
+                          setValues({ ...values, [key]: e.target.value })
+                        }
+                      >
+                        <option value="usuario">Usuario</option>
+                        <option value="admin">Administrador</option>
+                      </select>
+                    ) : type === "textarea" ? (
+                      <textarea
+                        rows={3}
+                        disabled={saving}
+                        value={values[key]}
+                        onChange={(e) =>
+                          setValues({ ...values, [key]: e.target.value })
+                        }
+                      />
+                    ) : (
+                      <input
+                        type={type}
+                        required={required}
+                        disabled={saving}
+                        value={values[key]}
+                        minLength={key === "password" ? 8 : undefined}
+                        maxLength={
+                          key === "password"
+                            ? 128
+                            : resource === "usuarios" && key === "nombre"
+                              ? 100
+                              : key === "correo"
+                                ? 254
+                                : undefined
+                        }
+                        min={key === "duracion_minutos" ? 1 : undefined}
+                        step={
+                          key === "calificacion"
+                            ? "any"
+                            : type === "number"
+                              ? "1"
+                              : undefined
+                        }
+                        autoComplete={
+                          key === "password" ? "new-password" : "off"
+                        }
+                        onChange={(e) =>
+                          setValues({ ...values, [key]: e.target.value })
+                        }
+                      />
+                    )}
+                  </label>
+                ),
+              )}
+            </div>
+            <div className="modal-actions">
+              <button
+                className="secondary"
+                type="button"
+                disabled={saving}
+                onClick={() => setEditing(null)}
+              >
+                Cancelar
+              </button>
+              <button className="primary" disabled={saving}>
+                {saving ? "Guardando…" : "Guardar cambios"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {deleting && (
+        <Modal
+          title="¿Eliminar este registro?"
+          busy={saving}
+          onClose={() => setDeleting(null)}
+        >
+          <Alert>{modalError}</Alert>
+          <p>
+            Vas a eliminar <strong>{deleting.titulo || deleting.nombre}</strong>
+            .
+          </p>
+          {resource === "usuarios" && (
+            <p className="form-note">
+              También se eliminarán su historial, consumo y sesiones.
+            </p>
+          )}
+          <p className="muted">Esta acción no se puede deshacer.</p>
+          <div className="modal-actions">
+            <button
+              className="secondary"
+              disabled={saving}
+              onClick={() => setDeleting(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              className="danger-button"
+              disabled={saving}
+              onClick={remove}
+            >
+              {saving ? "Eliminando…" : "Eliminar registro"}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }

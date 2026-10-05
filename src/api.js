@@ -1,12 +1,17 @@
 export const API_URL = (import.meta.env?.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
 const TOKEN_KEY = 'cineplay_token';
+
 export const getToken = () => sessionStorage.getItem(TOKEN_KEY);
+
 export const setToken = token => token ? sessionStorage.setItem(TOKEN_KEY, token) : sessionStorage.removeItem(TOKEN_KEY);
+
 export function errorMessage(detail) {
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) return detail.map(item => `${item.loc?.slice(1).join('.') || 'Campo'}: ${item.msg}`).join(' · ');
   return 'No se pudo completar la operación.';
 }
+
 export async function api(path, { method = 'GET', body, signal } = {}) {
   const headers = {};
   const token = getToken();
