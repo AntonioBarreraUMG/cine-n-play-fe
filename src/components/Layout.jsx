@@ -1,0 +1,12 @@
+import { useState } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { Film, MessageSquare, History, ChartColumn, Users, Gamepad2, LogOut, Menu, X } from 'lucide-react';
+import { useAuth } from '../AuthContext';
+import { Alert } from './UI';
+export default function Layout() {
+  const { user, logout } = useAuth(); const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const links = [['/chat','Conversar',MessageSquare],['/historial','Historial',History],['/consumo','Mi consumo',ChartColumn]];
+  async function signout() { setBusy(true); setError(''); try { await logout(); } catch (error) { setError(error.message); } finally { setBusy(false); } }
+  const link = ([to,label,Icon]) => <NavLink key={to} to={to} className={({isActive}) => `nav-link ${isActive ? 'active' : ''}`} onClick={() => setOpen(false)}><Icon size={19}/>{label}</NavLink>;
+  return <div className="app-shell"><button className="mobile-menu icon-button" aria-label="Abrir menú" onClick={() => setOpen(true)}><Menu/></button>{open && <button className="sidebar-overlay" aria-label="Cerrar menú" onClick={() => setOpen(false)}/>}<aside className={`sidebar ${open ? 'open' : ''}`}><div className="brand"><span className="brand-mark"><Film size={22}/></span>Cine<span className="brand-amp">&</span>Play<button className="mobile-close icon-button" aria-label="Cerrar menú" onClick={() => setOpen(false)}><X/></button></div><p className="sidebar-caption">TU CATÁLOGO, EN CONVERSACIÓN</p><nav aria-label="Navegación principal"><p className="nav-label">TU ESPACIO</p>{links.map(link)}{user.rol === 'admin' && <><p className="nav-label admin-label">ADMINISTRACIÓN</p>{[['/admin/usuarios','Usuarios',Users],['/admin/peliculas','Películas',Film],['/admin/videojuegos','Videojuegos',Gamepad2]].map(link)}</>}</nav><div className="sidebar-bottom"><div className="catalog-note"><span className="status-dot"/>Películas y videojuegos<p>Descubre lo que hay en tu catálogo.</p></div><div className="user-card"><div className="avatar">{user.nombre.slice(0,1).toUpperCase()}</div><div><strong>{user.nombre}</strong><span>{user.rol === 'admin' ? 'Administrador' : 'Usuario'}</span></div></div><Alert>{error}</Alert><button className="logout" disabled={busy} onClick={signout}><LogOut size={17}/>{busy ? 'Cerrando sesión…' : 'Cerrar sesión'}</button></div></aside><main className="main-content"><Outlet/></main></div>;
+}
